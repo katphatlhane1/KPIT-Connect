@@ -1,0 +1,8 @@
+{
+  "name": "KPIT CONNECT",
+  "description": "KP Informative Technologies Connect — Johannesburg-headquartered South African fibre and business Wi-Fi platform featuring coverage verification, real-time speed testing up to 1,000 Mbps, and plan comparisons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
