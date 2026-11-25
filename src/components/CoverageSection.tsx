@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   Layers,
+  LocateFixed,
   MapPin,
   Search,
   ShieldAlert,
@@ -54,6 +55,8 @@ interface CoverageSectionProps {
   hasMapsKey: boolean;
   onOrderForAddress: (address: string, coverage: CoverageResult) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  externalLocationTrigger?: { lat: number; lng: number; seq: number } | null;
+  onOpenLocationPopup: () => void;
 }
 
 const STATUS_META: Record<
@@ -470,6 +473,8 @@ export function CoverageSection({
   hasMapsKey,
   onOrderForAddress,
   searchInputRef,
+  externalLocationTrigger,
+  onOpenLocationPopup,
 }: CoverageSectionProps) {
   const [query, setQuery] = useState('');
   const [showLiveLayer, setShowLiveLayer] = useState(true);
@@ -507,6 +512,9 @@ export function CoverageSection({
         }
         const typedResult = data as CoverageResult;
         setCoverage(typedResult);
+        if (!payload.address && typedResult.address) {
+          setQuery(typedResult.address);
+        }
         setInfoOpen(true);
         if (typedResult.inSouthAfrica) {
           setFocusTrigger({
@@ -524,6 +532,17 @@ export function CoverageSection({
     },
     []
   );
+
+  useEffect(() => {
+    if (!externalLocationTrigger) return;
+    void evaluateCoordinates(
+      {
+        lat: externalLocationTrigger.lat,
+        lng: externalLocationTrigger.lng,
+      },
+      15
+    );
+  }, [externalLocationTrigger, evaluateCoordinates]);
 
   const handleDirectAddressSubmit = async (addressText: string) => {
     const trimmed = addressText.trim();
@@ -625,7 +644,18 @@ export function CoverageSection({
                 </form>
               )}
 
-              <div className="mt-5 pt-4 border-t border-slate-200">
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={onOpenLocationPopup}
+                  className="w-full py-2.5 px-4 text-xs sm:text-sm font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 hover:border-blue-300 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LocateFixed className="w-4 h-4 shrink-0" />
+                  <span>Use My Device Location</span>
+                </button>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-slate-200">
                 <p className="text-xs font-medium text-slate-500 mb-2.5">
                   Try a South African address:
                 </p>

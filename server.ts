@@ -195,9 +195,43 @@ async function startServer() {
       const { lat, lng, address, countryCode } = req.body ?? {};
 
       if (typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)) {
-        const result = evaluateSouthAfricaCoverage(lat, lng, typeof countryCode === 'string' ? countryCode : undefined);
+        let resolvedAddress =
+          typeof address === 'string' && address.trim().length > 0 ? address.trim().slice(0, 240) : '';
+        let resolvedCountry = typeof countryCode === 'string' && countryCode.trim() ? countryCode.trim() : undefined;
+
+        const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+        if ((!resolvedAddress || !resolvedCountry) && apiKey) {
+          try {
+            const revUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+            revUrl.searchParams.set('latlng', `${lat},${lng}`);
+            revUrl.searchParams.set('key', apiKey);
+            const revRes = await fetch(revUrl.toString());
+            if (revRes.ok) {
+              const revData = (await revRes.json()) as {
+                results?: Array<{
+                  formatted_address?: string;
+                  address_components?: Array<{ short_name?: string; types?: string[] }>;
+                }>;
+              };
+              const first = revData.results?.[0];
+              if (!resolvedAddress && first?.formatted_address) {
+                resolvedAddress = first.formatted_address.slice(0, 240);
+              }
+              if (!resolvedCountry) {
+                const countryComp = first?.address_components?.find((c) => c.types?.includes('country'));
+                if (countryComp?.short_name) {
+                  resolvedCountry = countryComp.short_name;
+                }
+              }
+            }
+          } catch {
+            // Fall back to raw coordinates if reverse geocoding is unavailable
+          }
+        }
+
+        const result = evaluateSouthAfricaCoverage(lat, lng, resolvedCountry);
         res.json({
-          address: typeof address === 'string' ? address.slice(0, 240) : `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+          address: resolvedAddress || `Current Device Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
           lat,
           lng,
           ...result,

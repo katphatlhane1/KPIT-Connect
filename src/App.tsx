@@ -8,6 +8,7 @@ import { SpeedTestSection } from './components/SpeedTestSection.tsx';
 import { PlanComparisonSection } from './components/PlanComparisonSection.tsx';
 import { BusinessWifiSection } from './components/BusinessWifiSection.tsx';
 import { OrderModal } from './components/OrderModal.tsx';
+import { LocationPermissionModal } from './components/LocationPermissionModal.tsx';
 import { Footer } from './components/Footer.tsx';
 import { FIBRE_PLANS } from './data/kpitData.ts';
 import type { FibrePlan } from './data/kpitData.ts';
@@ -24,12 +25,34 @@ export default function App() {
   const [orderPlan, setOrderPlan] = useState<FibrePlan | null>(null);
   const [orderCommitment, setOrderCommitment] = useState<'monthly' | '12month'>('12month');
 
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [deviceLocationTrigger, setDeviceLocationTrigger] = useState<{
+    lat: number;
+    lng: number;
+    seq: number;
+  } | null>(null);
+
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const handleQuotaExceeded = () => setQuotaExceeded(true);
     window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
     return () => window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const handled = window.sessionStorage.getItem('kpit_location_prompt_handled');
+      if (handled) return;
+    } catch {
+      // Ignore storage access restrictions
+    }
+
+    const timer = window.setTimeout(() => {
+      setLocationModalOpen(true);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const scrollToCoverageAndFocus = () => {
@@ -74,6 +97,36 @@ export default function App() {
     setOrderModalOpen(true);
   };
 
+  const markLocationPromptHandled = (state: 'granted' | 'dismissed') => {
+    try {
+      window.sessionStorage.setItem('kpit_location_prompt_handled', state);
+    } catch {
+      // Ignore storage access restrictions
+    }
+  };
+
+  const handleCloseLocationModal = () => {
+    markLocationPromptHandled('dismissed');
+    setLocationModalOpen(false);
+  };
+
+  const handleEnterAddressManually = () => {
+    markLocationPromptHandled('dismissed');
+    setLocationModalOpen(false);
+    scrollToCoverageAndFocus();
+  };
+
+  const handleLocationResolved = (coords: { lat: number; lng: number }) => {
+    markLocationPromptHandled('granted');
+    setLocationModalOpen(false);
+    setDeviceLocationTrigger({
+      lat: coords.lat,
+      lng: coords.lng,
+      seq: Date.now(),
+    });
+    document.getElementById('coverage')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const content = (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       {quotaExceeded && (
@@ -105,6 +158,8 @@ export default function App() {
           hasMapsKey={Boolean(MAPS_API_KEY)}
           onOrderForAddress={handleOrderForAddress}
           searchInputRef={searchInputRef}
+          externalLocationTrigger={deviceLocationTrigger}
+          onOpenLocationPopup={() => setLocationModalOpen(true)}
         />
 
         <SpeedTestSection onRecommendPlan={handleRecommendPlan} />
@@ -127,6 +182,13 @@ export default function App() {
         initialCommitment={orderCommitment}
         initialAddress={verifiedAddress}
         coverageStatus={verifiedCoverage?.status ?? 'pending'}
+      />
+
+      <LocationPermissionModal
+        isOpen={locationModalOpen}
+        onClose={handleCloseLocationModal}
+        onEnterManually={handleEnterAddressManually}
+        onLocationResolved={handleLocationResolved}
       />
     </div>
   );
